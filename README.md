@@ -2,7 +2,7 @@
 
 **Evidence-driven analysis of .NET memory dumps.** DumpDoctor opens a .NET dump, collects runtime evidence, and produces ranked, explainable hypotheses for memory leaks, blocked threads, ThreadPool starvation, deadlocks, and memory exhaustion. It tells you what it found, what supports it, and what it could not determine.
 
-> **Status: design phase (pre-alpha).** The CLI and commands below describe the planned interface. Nothing here is released yet. See [`DumpDoctor-Design.md`](./DumpDoctor-Design.md) for the full design.
+> **Status: design phase (pre-alpha).** The CLI and commands below describe the planned interface. Nothing here is released yet. See [`docs/design.md`](./docs/design.md) for the full design.
 
 ---
 
