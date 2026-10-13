@@ -1,2 +1,15 @@
 <Solution>
+  <Folder Name="/src/">
+    <Project Path="src/DumpDoctor.Cli/DumpDoctor.Cli.csproj" />
+    <Project Path="src/DumpDoctor.Collectors/DumpDoctor.Collectors.csproj" />
+    <Project Path="src/DumpDoctor.Core/DumpDoctor.Core.csproj" />
+    <Project Path="src/DumpDoctor.Integrations.ClrMD/DumpDoctor.Integrations.ClrMD.csproj" />
+    <Project Path="src/DumpDoctor.Reporting/DumpDoctor.Reporting.csproj" />
+    <Project Path="src/DumpDoctor.Rules/DumpDoctor.Rules.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/DumpDoctor.Core.Tests/DumpDoctor.Core.Tests.csproj" />
+    <Project Path="tests/DumpDoctor.IntegrationTests/DumpDoctor.IntegrationTests.csproj" />
+    <Project Path="tests/DumpDoctor.Rules.Tests/DumpDoctor.Rules.Tests.csproj" />
+  </Folder>
 </Solution>

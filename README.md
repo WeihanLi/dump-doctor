@@ -1,8 +1,8 @@
 # DumpDoctor
 
-**Evidence-driven analysis of .NET memory dumps.** DumpDoctor opens a .NET dump, collects runtime evidence, and produces ranked, explainable hypotheses for memory leaks, blocked threads, ThreadPool starvation, deadlocks, and memory exhaustion. It tells you what it found, what supports it, and what it could not determine.
+**Evidence-driven analysis of .NET memory dumps.** DumpDoctor opens a .NET dump, collects runtime evidence, and produces explainable findings for memory pressure and blocking patterns. It tells you what it found, what supports it, and what it could not determine from the artifacts you supplied.
 
-> **Status: design phase (pre-alpha).** The CLI and commands below describe the planned interface. Nothing here is released yet. See [`DumpDoctor-Design.md`](./DumpDoctor-Design.md) for the full design.
+> **Status: pre-alpha MVP.** The repository now contains a working .NET 10 CLI with ClrMD-backed dump inspection, JSON/Markdown reporting, and an initial evidence/rule pipeline. See [`docs/design.md`](./docs/design.md) for the full design and planned phases that are still in progress.
 
 ---
 
@@ -16,19 +16,17 @@ Tools like `dotnet-dump` + SOS, WinDbg, and PerfView are powerful, but they are 
 - **CI-friendly.** Stable JSON output and exit codes.
 - **Offline and private by default.** Dumps can contain secrets. Nothing is uploaded, and reports redact sensitive values.
 
-## What it will detect
+## What it detects today
 
 | Area | Examples | Needs |
 |---|---|---|
-| Memory | Heap composition, LOH/pinned footprint, unbounded growth, retention paths | One dump; growth needs 2+ (3+ preferred) |
-| Threads | Blocking stack patterns, sync-over-async (`.Result`, `.Wait()`), lock waits, deadlock candidates | One dump |
-| ThreadPool starvation | Blocked workers with queue growth | Dump + runtime metrics (planned) |
-| CPU / GC | Hot methods, GC pressure | `.nettrace` / metrics (planned) |
-| OOM | Managed heap exhaustion, limit mismatches | One dump |
+| Memory | Heap composition, top types, LOH-sized objects, pinned handles, GC state | One dump |
+| Threads | Managed thread stacks, repeated sync-over-async style waits (`.Result`, `.Wait()`, blocking waits) | One dump |
+| Reports | JSON and Markdown reports, evidence inventory, diagnostic completeness, stable exit codes | One dump |
 
-A dump alone cannot prove a leak, sustained high CPU, or evolving starvation. DumpDoctor will say so rather than guess.
+A dump alone cannot prove a leak, sustained high CPU, or evolving starvation. DumpDoctor says so rather than guessing. Multi-dump comparison, retained-size analysis, CPU trace correlation, and stronger starvation diagnosis are still planned.
 
-## Planned usage
+## Current CLI usage
 
 ```bash
 # Analyze one dump
@@ -36,12 +34,6 @@ dumpdoctor analyze ./app.dmp
 
 # Focus on memory and write a Markdown report
 dumpdoctor analyze ./app.dmp --focus memory --format markdown --output ./report.md
-
-# Compare snapshots in capture order (Phase 2)
-dumpdoctor compare ./t0.dmp ./t1.dmp ./t2.dmp
-
-# Add trace and metrics evidence (Phase 3)
-dumpdoctor analyze ./app.dmp --trace ./cpu.nettrace --metrics ./metrics.json
 
 # CI gate: exit non-zero on High-severity findings
 dumpdoctor analyze ./app.dmp --format json --output ./report.json --fail-on high
@@ -51,7 +43,13 @@ dumpdoctor inspect ./app.dmp
 dumpdoctor rules list
 ```
 
-### Exit codes (proposed)
+### Implemented commands
+
+- `analyze`: open one dump, run collectors and rules, and emit JSON or Markdown.
+- `inspect`: emit collected evidence without evaluating rules.
+- `rules list`: print the shipped rule catalog and default thresholds.
+
+### Exit codes
 
 | Code | Meaning |
 |---|---|
@@ -59,7 +57,7 @@ dumpdoctor rules list
 | 1 | Completed; finding at or above `--fail-on` |
 | 2 | Invalid arguments or configuration |
 | 3 | Input missing, corrupt, or unsupported |
-| 4 | Partial result (some analyzers failed or timed out) |
+| 4 | Partial result (some collectors failed) |
 | 5 | Unexpected internal error |
 | 130 | Cancelled |
 
@@ -84,7 +82,12 @@ Findings are only as good as the dumps:
 
 ## Supported environments
 
-_To be finalized (see design decision 1)._ Proposed: DumpDoctor runs on .NET 10 and analyzes modern .NET dumps from Windows and Linux. .NET Framework, NativeAOT, and Mono dumps are out of scope for the first release.
+Current implementation target:
+
+- DumpDoctor runs on **.NET 10**.
+- The MVP uses **ClrMD** and is intended for modern .NET dumps.
+- `.NET Framework`, NativeAOT, Mono, multi-dump comparison, and trace/metrics ingestion are not implemented yet.
+- Symbol/DAC download is still conservative: the CLI exposes `--offline` / `--allow-symbol-server`, but the current implementation relies on what ClrMD can resolve locally when opening the dump.
 
 ## Roadmap
 
@@ -104,7 +107,7 @@ Artifacts → Orchestrator → Evidence collectors → Evidence store → Rules 
 - **Collectors** (ClrMD-based) gather facts from dumps. **Rules** are pure functions over evidence, so they are deterministic and testable without a dump.
 - Reporting renders results and contains no diagnostic logic.
 
-See the [design document](./DumpDoctor-Design.md) for details.
+See the [design document](./docs/design.md) for details.
 
 ## Repository layout
 
@@ -117,20 +120,31 @@ src/
   DumpDoctor.Integrations.ClrMD/
   DumpDoctor.Reporting/
 tests/
-samples/            # intentionally broken apps used to generate test dumps
 ```
 
 ## Building from source
 
-_Not yet available. This section will be filled in once the first project is scaffolded (prerequisite: .NET 10 SDK)._
+Prerequisite: **.NET SDK 10.0.401** or later in the 10.0 feature band.
+
+```bash
+dotnet build dump-doctor.slnx
+dotnet test dump-doctor.slnx
+dotnet run --project src/DumpDoctor.Cli -- --help
+```
+
+Example analysis run:
+
+```bash
+dotnet run --project src/DumpDoctor.Cli -- analyze ./app.dmp --format markdown --output ./report.md
+```
 
 ## Contributing
 
-The project is in the design phase, so the most useful contributions right now are:
+The most useful contributions right now are:
 
-- Review of the design document and the open decisions in §19.
 - Sample scenarios and sanitized dumps for the test corpus.
-- Real-world diagnostic cases the rules should cover.
+- Additional deterministic rules and evidence collectors.
+- Review of the design document and the open decisions in §19.
 
 Please do **not** attach real production dumps to issues or pull requests. They may contain credentials and personal data.
 

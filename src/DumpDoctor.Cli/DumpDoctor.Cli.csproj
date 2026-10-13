@@ -1,0 +1,18 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+  <ItemGroup>
+    <ProjectReference Include="..\DumpDoctor.Core\DumpDoctor.Core.csproj" />
+    <ProjectReference Include="..\DumpDoctor.Collectors\DumpDoctor.Collectors.csproj" />
+    <ProjectReference Include="..\DumpDoctor.Rules\DumpDoctor.Rules.csproj" />
+    <ProjectReference Include="..\DumpDoctor.Integrations.ClrMD\DumpDoctor.Integrations.ClrMD.csproj" />
+    <ProjectReference Include="..\DumpDoctor.Reporting\DumpDoctor.Reporting.csproj" />
+  </ItemGroup>
+
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+  </PropertyGroup>
+
+</Project>
