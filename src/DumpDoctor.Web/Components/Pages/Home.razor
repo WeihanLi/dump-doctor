@@ -1,0 +1,124 @@
+﻿@page "/"
+@rendermode InteractiveServer
+@using DumpDoctor.Core
+@using DumpDoctor.Hosting
+@inject AnalysisService AnalysisService
+
+<PageTitle>DumpDoctor</PageTitle>
+
+<h1>Analyze a local dump</h1>
+
+<p class="lead">
+    Enter the path to a dump accessible to this machine. The web app processes it locally and does not upload it.
+</p>
+
+<div class="card">
+    <div class="card-body">
+        <div class="mb-3">
+            <label class="form-label" for="dump-path">Dump path</label>
+            <input id="dump-path" class="form-control" @bind="dumpPath" placeholder="C:\dumps\application.dmp" />
+        </div>
+        <div class="mb-3">
+            <label class="form-label" for="focus">Focus</label>
+            <select id="focus" class="form-select" @bind="focus">
+                <option value="@AnalysisFocus.All">All</option>
+                <option value="@AnalysisFocus.Memory">Memory</option>
+                <option value="@AnalysisFocus.Threads">Threads</option>
+                <option value="@AnalysisFocus.Cpu">CPU</option>
+            </select>
+        </div>
+        <button class="btn btn-primary me-2" @onclick="AnalyzeAsync" disabled="@isAnalyzing">Analyze</button>
+        <button class="btn btn-outline-secondary" @onclick="InspectAsync" disabled="@isAnalyzing">Inspect evidence</button>
+    </div>
+</div>
+
+@if (isAnalyzing)
+{
+    <p class="mt-3">Opening and analyzing the dump. This can take time for large artifacts.</p>
+}
+
+@if (error is not null)
+{
+    <div class="alert alert-danger mt-3" role="alert">@error</div>
+}
+
+@if (report is not null)
+{
+    <section class="mt-4">
+        <h2>Report</h2>
+        <dl class="row">
+            <dt class="col-sm-3">Artifact</dt>
+            <dd class="col-sm-9">@report.Artifact.Path</dd>
+            <dt class="col-sm-3">Completeness</dt>
+            <dd class="col-sm-9">@report.Completeness.RunnableRules / @report.Completeness.ApplicableRules runnable rules (@report.Completeness.Coverage.ToString("P0"))</dd>
+            <dt class="col-sm-3">Result</dt>
+            <dd class="col-sm-9">@(report.HasPartialResults ? "Partial analysis" : "Completed")</dd>
+        </dl>
+
+        <h3>Findings</h3>
+        @if (report.Findings.Count == 0)
+        {
+            <p>No findings were produced for the collected evidence.</p>
+        }
+        else
+        {
+            <div class="list-group">
+                @foreach (var finding in report.Findings)
+                {
+                    <article class="list-group-item">
+                        <h4 class="h5">@finding.RuleId: @finding.Title</h4>
+                        <p>@finding.Summary</p>
+                        <p class="mb-0"><strong>Severity:</strong> @finding.Severity <strong class="ms-3">Confidence:</strong> @finding.Confidence</p>
+                    </article>
+                }
+            </div>
+        }
+
+        <h3 class="mt-4">Unavailable analysis</h3>
+        <ul>
+            @foreach (var status in report.Completeness.Rules.Where(status => status.Status != DiagnosticCapabilityStatus.Runnable))
+            {
+                <li><strong>@status.RuleId:</strong> @status.Reason</li>
+            }
+        </ul>
+    </section>
+}
+
+@code {
+    private string dumpPath = string.Empty;
+    private AnalysisFocus focus = AnalysisFocus.All;
+    private AnalysisReport? report;
+    private string? error;
+    private bool isAnalyzing;
+
+    private Task AnalyzeAsync() => RunAsync("analyze", includeFindings: true);
+
+    private Task InspectAsync() => RunAsync("inspect", includeFindings: false);
+
+    private async Task RunAsync(string command, bool includeFindings)
+    {
+        error = null;
+        report = null;
+
+        if (string.IsNullOrWhiteSpace(dumpPath))
+        {
+            error = "A local dump path is required.";
+            return;
+        }
+
+        isAnalyzing = true;
+        try
+        {
+            var options = AnalysisOptions.CreateDefault(Path.GetFullPath(dumpPath)) with { Focus = focus };
+            report = await AnalysisService.AnalyzeAsync(command, options, includeFindings, CancellationToken.None);
+        }
+        catch (AnalysisException exception)
+        {
+            error = exception.Message;
+        }
+        finally
+        {
+            isAnalyzing = false;
+        }
+    }
+}

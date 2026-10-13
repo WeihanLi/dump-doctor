@@ -1,6 +1,6 @@
 # DumpDoctor
 
-**Evidence-driven analysis of .NET memory dumps.** DumpDoctor opens a .NET dump, collects runtime evidence, and produces explainable findings for memory pressure and blocking patterns. It tells you what it found, what supports it, and what it could not determine from the artifacts you supplied.
+**Evidence-driven analysis of .NET memory dumps.** DumpDoctor opens a .NET dump, collects runtime evidence, and produces explainable findings for memory pressure and blocking patterns. It tells you what it found, what supports it, and what it could not determine from the artifacts you supplied. Use it from the CLI, a local Blazor web UI, or an MCP client.
 
 > **Status: pre-alpha MVP.** The repository now contains a working .NET 10 CLI with ClrMD-backed dump inspection, JSON/Markdown reporting, and an initial evidence/rule pipeline. See [`docs/design.md`](./docs/design.md) for the full design and planned phases that are still in progress.
 
@@ -42,6 +42,35 @@ dumpdoctor analyze ./app.dmp --format json --output ./report.json --fail-on high
 dumpdoctor inspect ./app.dmp
 dumpdoctor rules list
 ```
+
+## Local web UI
+
+The Blazor web app runs analysis on the host machine. Enter a filesystem path rather than uploading a dump, so artifacts remain local.
+
+```bash
+dotnet run --project src/DumpDoctor.Web
+```
+
+Use the localhost URL printed by ASP.NET Core. The page supports full analysis and evidence-only inspection with the same defaults as the CLI.
+
+## MCP server
+
+The CLI's `mcp` command starts a local stdio MCP server. It exposes `list_rules`, `analyze_dump`, and `inspect_dump`; analysis results are returned as the versioned DumpDoctor JSON report. The server never uploads dump contents.
+
+Build the project, then configure an MCP client to start it with:
+
+```json
+{
+  "mcpServers": {
+    "dumpdoctor": {
+      "command": "dotnet",
+      "args": ["run", "--project", "src/DumpDoctor.Cli", "--no-build", "--", "mcp"]
+    }
+  }
+}
+```
+
+The command's working directory must be the repository root, or replace the project path with an absolute path. The MCP tool accepts only local dump paths and keeps network access disabled by default.
 
 ### Implemented commands
 
@@ -114,6 +143,8 @@ See the [design document](./docs/design.md) for details.
 ```text
 src/
   DumpDoctor.Cli/
+  DumpDoctor.Hosting/
+  DumpDoctor.Web/
   DumpDoctor.Core/
   DumpDoctor.Collectors/
   DumpDoctor.Rules/

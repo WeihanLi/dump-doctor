@@ -1,8 +1,9 @@
-using DumpDoctor.Collectors;
 using DumpDoctor.Core;
-using DumpDoctor.Integrations.ClrMD;
+using DumpDoctor.Hosting;
 using DumpDoctor.Reporting;
-using DumpDoctor.Rules;
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Hosting;
+using Microsoft.Extensions.Logging;
 
 var cancellation = new CancellationTokenSource();
 Console.CancelKeyPress += (_, eventArgs) =>
@@ -22,19 +23,7 @@ static async Task<ExitCode> RunAsync(string[] args, CancellationToken cancellati
         return ExitCode.Success;
     }
 
-    var toolVersion = typeof(Program).Assembly.GetName().Version?.ToString() ?? "0.1.0";
-    var orchestrator = new AnalysisOrchestrator(
-        new ClrMdDumpSessionFactory(),
-        [
-            new HeapStatisticsCollector(),
-            new GcAndHandleCollector(),
-            new ThreadSnapshotCollector()
-        ],
-        [
-            new LargeObjectFootprintRule(),
-            new SyncOverAsyncRule()
-        ],
-        toolVersion: toolVersion);
+    var analysisService = new AnalysisService();
 
     var renderers = new Dictionary<ReportFormat, IReportRenderer>
     {
@@ -47,9 +36,10 @@ static async Task<ExitCode> RunAsync(string[] args, CancellationToken cancellati
         var command = args[0].ToLowerInvariant();
         return command switch
         {
-            "analyze" => await HandleAnalyzeOrInspectAsync("analyze", includeFindings: true, args[1..], orchestrator, renderers, cancellationToken),
-            "inspect" => await HandleAnalyzeOrInspectAsync("inspect", includeFindings: false, args[1..], orchestrator, renderers, cancellationToken),
-            "rules" => HandleRules(args[1..], orchestrator),
+            "analyze" => await HandleAnalyzeOrInspectAsync("analyze", includeFindings: true, args[1..], analysisService, renderers, cancellationToken),
+            "inspect" => await HandleAnalyzeOrInspectAsync("inspect", includeFindings: false, args[1..], analysisService, renderers, cancellationToken),
+            "mcp" => await RunMcpAsync(args[1..], cancellationToken),
+            "rules" => HandleRules(args[1..], analysisService),
             _ => ExitWithError($"Unknown command '{args[0]}'.", ExitCode.InvalidArguments)
         };
     }
@@ -70,11 +60,31 @@ static async Task<ExitCode> RunAsync(string[] args, CancellationToken cancellati
     }
 }
 
+static async Task<ExitCode> RunMcpAsync(string[] args, CancellationToken cancellationToken)
+{
+    if (args.Length > 0)
+    {
+        return ExitWithError("The mcp command does not accept arguments.", ExitCode.InvalidArguments);
+    }
+
+    var builder = Host.CreateApplicationBuilder();
+    builder.Logging.ClearProviders();
+    builder.Logging.AddConsole(options => options.LogToStandardErrorThreshold = LogLevel.Trace);
+    builder.Services.AddSingleton<AnalysisService>();
+    builder.Services.AddMcpServer()
+        .WithStdioServerTransport()
+        .WithToolsFromAssembly();
+
+    using var host = builder.Build();
+    await host.RunAsync(cancellationToken);
+    return ExitCode.Success;
+}
+
 static async Task<ExitCode> HandleAnalyzeOrInspectAsync(
     string command,
     bool includeFindings,
     string[] args,
-    AnalysisOrchestrator orchestrator,
+    AnalysisService analysisService,
     IReadOnlyDictionary<ReportFormat, IReportRenderer> renderers,
     CancellationToken cancellationToken)
 {
@@ -130,7 +140,7 @@ static async Task<ExitCode> HandleAnalyzeOrInspectAsync(
         }
     }
 
-    var report = await orchestrator.AnalyzeAsync(command, options, includeFindings, cancellationToken);
+    var report = await analysisService.AnalyzeAsync(command, options, includeFindings, cancellationToken);
     var output = renderers[options.Format].Render(report);
 
     if (string.IsNullOrWhiteSpace(options.OutputPath))
@@ -148,7 +158,7 @@ static async Task<ExitCode> HandleAnalyzeOrInspectAsync(
     return report.DetermineExitCode();
 }
 
-static ExitCode HandleRules(string[] args, AnalysisOrchestrator orchestrator)
+static ExitCode HandleRules(string[] args, AnalysisService analysisService)
 {
     if (args.Length == 0 || !string.Equals(args[0], "list", StringComparison.OrdinalIgnoreCase))
     {
@@ -157,7 +167,7 @@ static ExitCode HandleRules(string[] args, AnalysisOrchestrator orchestrator)
 
     Console.Out.WriteLine("| Rule ID | Focus | Category | Required evidence | Thresholds |");
     Console.Out.WriteLine("|---|---|---|---|---|");
-    foreach (var rule in orchestrator.Rules.OrderBy(rule => rule.Id, StringComparer.Ordinal))
+    foreach (var rule in analysisService.Rules.OrderBy(rule => rule.Id, StringComparer.Ordinal))
     {
         var evidence = string.Join(", ", rule.RequiredEvidence.OrderBy(kind => kind));
         var thresholds = string.Join(", ", rule.Thresholds.Select(entry => $"{entry.Key}={entry.Value}"));
@@ -221,6 +231,7 @@ static void WriteHelp()
         Commands:
           dumpdoctor analyze <dumpPath> [options]
           dumpdoctor inspect <dumpPath> [options]
+          dumpdoctor mcp
           dumpdoctor rules list
 
         Options:

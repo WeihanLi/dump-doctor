@@ -3,9 +3,11 @@
     <Project Path="src/DumpDoctor.Cli/DumpDoctor.Cli.csproj" />
     <Project Path="src/DumpDoctor.Collectors/DumpDoctor.Collectors.csproj" />
     <Project Path="src/DumpDoctor.Core/DumpDoctor.Core.csproj" />
+    <Project Path="src/DumpDoctor.Hosting/DumpDoctor.Hosting.csproj" />
     <Project Path="src/DumpDoctor.Integrations.ClrMD/DumpDoctor.Integrations.ClrMD.csproj" />
     <Project Path="src/DumpDoctor.Reporting/DumpDoctor.Reporting.csproj" />
     <Project Path="src/DumpDoctor.Rules/DumpDoctor.Rules.csproj" />
+    <Project Path="src/DumpDoctor.Web/DumpDoctor.Web.csproj" />
   </Folder>
   <Folder Name="/tests/">
     <Project Path="tests/DumpDoctor.Core.Tests/DumpDoctor.Core.Tests.csproj" />
